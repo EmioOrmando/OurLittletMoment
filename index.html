@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>💜</title>
+  <style>
+    :root{
+      --bg:#000;
+      --p1:#8b5cf6;
+      --p2:#a78bfa;
+      --p3:#5b21b6;
+      --txt:rgba(255,255,255,0.88);
+      --muted:rgba(255,255,255,0.62);
+      --border:rgba(139,92,246,0.28);
+    }
+    html,body{height:100%;margin:0;background:var(--bg);overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
+    canvas{display:block;width:100vw;height:100vh;image-rendering: pixelated;}
+
+    .hud{
+      position:fixed;
+      left:50%;
+      bottom:16px;
+      transform:translateX(-50%);
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:center;
+      flex-wrap:wrap;
+      padding:10px 12px;
+      border-radius:999px;
+      background: rgba(0,0,0,0.55);
+      border:1px solid var(--border);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.55);
+      color:var(--txt);
+      user-select:none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button{
+      background: rgba(139,92,246,0.14);
+      color: #fff;
+      border: 1px solid rgba(139,92,246,0.35);
+      padding: 10px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 650;
+    }
+    button:hover{ background: rgba(139,92,246,0.22); }
+    .status{min-width:260px;font-size:13px;opacity:0.92;text-align:center;}
+    .tip{
+      position:fixed;
+      top:14px;
+      left:50%;
+      transform:translateX(-50%);
+      padding:10px 14px;
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(139,92,246,0.14), rgba(139,92,246,0.06));
+      border:1px solid var(--border);
+      color:var(--muted);
+      font-size:13px;
+      text-align:center;
+      max-width:min(860px, 92vw);
+      box-shadow: 0 18px 60px rgba(0,0,0,0.6);
+    }
+    .tip strong{color:var(--txt); font-weight:700;}
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div class="tip">
+    Put <strong>scene.png</strong> in your repo root to use it as the background.
+    Put your pixel couple PNG as <strong>couple.png</strong> (transparent background).
+    Tap/click anywhere to start music (autoplay rule).
+  </div>
+
+  <div class="hud" id="tapArea" role="button" tabindex="0" aria-label="Play or pause music">
+    <button id="playBtn" type="button">Play</button>
+    <button id="pauseBtn" type="button">Pause</button>
+    <div class="status" id="status">Loading assets…</div>
+  </div>
+
+  <!-- Put song.mp3 in the same folder as index.html (repo root) -->
+  <audio id="bgm" src="song.mp3" preload="auto" loop></audio>
+
+<script>
+(() => {
+  // ---------- Audio ----------
+  const audio = document.getElementById('bgm');
+  const statusEl = document.getElementById('status');
+  const setStatus = (m) => statusEl.textContent = m || "";
+  const playBtn = document.getElementById('playBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+
+  audio.addEventListener('error', () => {
+    const code = audio.error ? audio.error.code : 0;
+    const msg =
+      code === 2 ? "Audio load failed (404/path). Check song.mp3 name/case + location." :
+      code === 3 ? "Audio decode failed. Re-export MP3 (CBR 128–320kbps) and re-upload." :
+      code === 4 ? "Audio not supported. Use .mp3 or .m4a." :
+      "Audio error. Check song.mp3 exists beside index.html.";
+    setStatus(msg);
+  });
+
+  async function playAudio(){
+    try{ audio.volume = 0.85; await audio.play(); setStatus("Playing ♫"); }
+    catch{ setStatus("Autoplay blocked — click/tap once to start music."); }
+  }
+  function pauseAudio(){ audio.pause(); setStatus("Paused"); }
+  function toggleAudio(){ audio.paused ? playAudio() : pauseAudio(); }
+
+  playBtn.addEventListener('click', playAudio);
+  pauseBtn.addEventListener('click', pauseAudio);
+
+  // ---------- Canvas ----------
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  function resize(){
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width  = Math.floor(innerWidth * dpr);
+    canvas.height = Math.floor(innerHeight * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.imageSmoothingEnabled = false;
+  }
+  addEventListener('resize', resize);
+  resize();
+
+  // Background image: scene.png
+  const sceneImg = new Image();
+  let hasScene = false;
+  sceneImg.onload = () => { hasScene = true; };
+  sceneImg.onerror = () => { hasScene = false; };
+  sceneImg.src = "scene.png";
+
+  // Couple overlay: couple.png (YOUR pixel art couple, transparent)
+  const coupleImg = new Image();
+  let hasCouple = false;
+  coupleImg.onload = () => { hasCouple = true; };
+  coupleImg.onerror = () => { hasCouple = false; };
+  coupleImg.src = "couple.png";
+
+  // Fallback background (if scene.png not present)
+  const CSS = getComputedStyle(document.documentElement);
+  const C = {
+    sky1: "#181427",
+    sky2: "#0c0a14",
+    p2: CSS.getPropertyValue('--p2').trim(),
+  };
+  const stars = Array.from({length: 26}, () => ({
+    x: Math.random() * innerWidth,
+    y: Math.random() * innerHeight * 0.6,
+    s: (Math.random() < 0.2) ? 3 : 2,
+    a: 0.35 + Math.random()*0.55,
+    t: Math.random()*1000
+  }));
+
+  function drawProcedural(t){
+    const g = ctx.createLinearGradient(0,0,0,innerHeight);
+    g.addColorStop(0, C.sky1);
+    g.addColorStop(1, C.sky2);
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,innerWidth,innerHeight);
+
+    for(const s of stars){
+      const tw = 0.65 + 0.35*Math.sin((t*0.001) + s.t);
+      ctx.fillStyle = `rgba(167,139,250,${(s.a*tw).toFixed(3)})`;
+      ctx.fillRect(s.x, s.y, s.s, s.s);
+    }
+
+    const mx = innerWidth*0.5, my = innerHeight*0.22;
+    const r  = Math.min(innerWidth, innerHeight) * 0.12;
+    const step = 4;
+
+    ctx.fillStyle = C.p2;
+    for(let y=-r; y<=r; y+=step){
+      for(let x=-r; x<=r; x+=step){
+        if(x*x + y*y <= r*r) ctx.fillRect(mx+x, my+y, step, step);
+      }
+    }
+  }
+
+  // Click anywhere toggles audio
+  document.addEventListener('pointerdown', toggleAudio, { passive:true });
+
+  // Status checks (helps you see missing files on Pages)
+  Promise.allSettled([
+    fetch("scene.png", { method: "GET", cache: "no-store" }),
+    fetch("couple.png", { method: "GET", cache: "no-store" }),
+    fetch("song.mp3",  { method: "GET", cache: "no-store" })
+  ]).then(([s,c,a]) => {
+    const sOK = s.status === "fulfilled" && s.value.ok;
+    const cOK = c.status === "fulfilled" && c.value.ok;
+    const aOK = a.status === "fulfilled" && a.value.ok;
+
+    if(!sOK) setStatus("scene.png not found (will use fallback background).");
+    else if(!cOK && !aOK) setStatus("scene.png loaded. Add couple.png and/or song.mp3.");
+    else if(!cOK) setStatus("scene.png loaded. couple.png missing (add it to repo root).");
+    else if(!aOK) setStatus("scene.png + couple.png loaded. song.mp3 missing.");
+    else setStatus("All assets loaded. Tap/click to play ♫");
+  });
+
+  // Animation loop
+  let last = performance.now();
+  let phase = 0;
+
+  function frame(now){
+    const dt = Math.min(0.033, (now-last)/1000);
+    last = now;
+    phase += dt;
+
+    // Draw background
+    if(hasScene){
+      const iw = sceneImg.naturalWidth || 1, ih = sceneImg.naturalHeight || 1;
+      const s = Math.max(innerWidth/iw, innerHeight/ih);
+      const dw = iw*s, dh = ih*s;
+      const dx = (innerWidth - dw)/2;
+      const dy = (innerHeight - dh)/2;
+      ctx.drawImage(sceneImg, dx, dy, dw, dh);
+      // light purple tint to blend with theme
+      ctx.fillStyle = "rgba(139,92,246,0.05)";
+      ctx.fillRect(0,0,innerWidth,innerHeight);
+    } else {
+      drawProcedural(now);
+    }
+
+    // Draw couple overlay (slow-dance motion)
+    if(hasCouple){
+      // Anchor position: center, slightly above bottom UI
+      const targetH = Math.min(innerHeight * 0.28, 260);
+      const scale = targetH / (coupleImg.naturalHeight || 1);
+      const w = (coupleImg.naturalWidth || 1) * scale;
+      const h = (coupleImg.naturalHeight || 1) * scale;
+
+      const x = innerWidth*0.5 - w/2;
+      const y = innerHeight*0.80 - h; // place near the "bridge" area
+
+      // Slow-dance sway + bob
+      const sway = Math.sin(phase * 1.05) * 0.06; // radians
+      const bob  = Math.sin(phase * 2.10) * 3.5;  // px
+
+      // subtle glow behind the couple
+      const gx = innerWidth*0.5, gy = y + h*0.55;
+      const gr = Math.min(innerWidth, innerHeight) * 0.16;
+      const glow = ctx.createRadialGradient(gx,gy,0,gx,gy,gr);
+      glow.addColorStop(0, "rgba(139,92,246,0.12)");
+      glow.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(gx-gr, gy-gr, gr*2, gr*2);
+
+      // Rotate around the couple’s feet area
+      ctx.save();
+      ctx.translate(innerWidth*0.5, y + h*0.88);
+      ctx.rotate(sway);
+      ctx.translate(-innerWidth*0.5, -(y + h*0.88));
+
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(coupleImg, x, y + bob, w, h);
+
+      ctx.restore();
+    }
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
